@@ -67,8 +67,6 @@ class Order(models.Model):
     tracking_parcel_weight = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     order_comments = models.TextField(blank=True, null=True)
     customer_id = models.CharField(max_length=50, blank=True, null=True)
-    order_ip = models.GenericIPAddressField(blank=True, null=True)
-    order_items = models.PositiveIntegerField()
 
     def __str__(self):
         return f"Order {self.order_id} from {self.marketplace}"
