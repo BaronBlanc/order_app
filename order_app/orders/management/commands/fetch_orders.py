@@ -1,22 +1,10 @@
 import requests
 from django.core.management.base import BaseCommand
 from xml.etree import ElementTree
+from orders.utils import safe_datetime_conversion, safe_decimal_conversion
 from orders.models import Order
-from datetime import datetime
 from django.utils import timezone
-from decimal import Decimal, InvalidOperation
-
-def safe_decimal_conversion(value):
-    try:
-        return Decimal(value)
-    except (InvalidOperation, TypeError, ValueError):
-        return None
-    
-def safe_datetime_conversion(value, date_format, default=None):
-    try:
-        return datetime.strptime(value, date_format)
-    except (TypeError, ValueError):
-        return default
+from decimal import Decimal
 
 class Command(BaseCommand):
     help = 'Fetch orders from the Lengow XML feed and save them to the database'
