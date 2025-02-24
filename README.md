@@ -6,8 +6,6 @@ This is a Django-based web application for managing customer orders.
 
 - User authentication and authorization
 - Fetch and Read orders
-- Order filtering and search functionality
-- Responsive design
 
 ## Installation
 
@@ -64,4 +62,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Acknowledgements
 
 - [Django](https://www.djangoproject.com/)
-- [Bootstrap](https://getbootstrap.com/)
