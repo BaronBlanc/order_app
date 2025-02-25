@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="windows-1252"?>
+    <billing_address>
+        <billing_society><![CDATA[]]></billing_society>
+        <billing_civility><![CDATA[]]></billing_civility>
+        <billing_lastname><![CDATA[Tom Croisière]]></billing_lastname>
+        <billing_firstname><![CDATA[]]></billing_firstname>
+        <billing_email><![CDATA[web1n0r@marketplace.amazon.fr]]></billing_email>
+        <billing_address><![CDATA[014 rue de la poupée]]></billing_address>
+        <billing_address_2><![CDATA[]]></billing_address_2>
+        <billing_address_complement><![CDATA[]]></billing_address_complement>
+        <billing_zipcode><![CDATA[75000]]></billing_zipcode>
+        <billing_city><![CDATA[Paris]]></billing_city>
+        <billing_country><![CDATA[FR]]></billing_country>
+        <billing_country_iso><![CDATA[FR]]></billing_country_iso>
+        <billing_phone_home><![CDATA[0605050404]]></billing_phone_home>
+        <billing_phone_office><![CDATA[]]></billing_phone_office>
+        <billing_phone_mobile><![CDATA[]]></billing_phone_mobile>
+        <billing_full_address><![CDATA[014 rue de la poupée   75000 Paris FR]]></billing_full_address>
+    </billing_address>
