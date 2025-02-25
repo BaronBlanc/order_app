@@ -236,7 +236,7 @@ class FetchOrdersCommandTest(TestCase):
         mock_get.return_value = mock_response
 
         # Call the management command
-        call_command("fetch_orders")
+        call_command("fetch_orders", "test")
 
         # Verify that the orders were created correctly
         self.assertEqual(Order.objects.count(), 1)

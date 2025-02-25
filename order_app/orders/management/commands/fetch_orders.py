@@ -15,8 +15,13 @@ from orders.utils import (
 class Command(BaseCommand):
     help = "Fetch orders from the Lengow XML feed and save them to the database"
 
+    def add_arguments(self, parser):
+        parser.add_argument("url", type=str, help="URL of the remote XML feed")
+
     def handle(self, *args, **kwargs):
-        url = "http://test.lengow.io/orders-test.xml"
+        url = (
+            kwargs["url"] if kwargs["url"] else "http://test.lengow.io/orders-test.xml"
+        )
         response = requests.get(url)
 
         if response.status_code == 200:
