@@ -1,6 +1,6 @@
 from decimal import Decimal
+import logging
 from xml.etree import ElementTree
-
 import requests
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -10,6 +10,81 @@ from orders.utils import (
     safe_datetime_conversion,
     safe_decimal_conversion,
 )
+
+logger = logging.getLogger(__name__)
+
+field_mappings = {
+    "marketplace": "marketplace",
+    "id_flux": "idFlux",
+    "order_status_marketplace": ".//marketplace",
+    "order_status_lengow": ".//lengow",
+    "order_id": "order_id",
+    "order_mrid": "order_mrid",
+    "order_refid": "order_refid",
+    "order_external_id": "order_external_id",
+    "order_currency": "order_currency",
+    "payment_checkout": ".//payment_checkout",
+    "payment_status": ".//payment_status",
+    "payment_type": ".//payment_type",
+    "invoice_number": ".//invoice_number",
+    "invoice_url": ".//invoice_url",
+    "billing_society": ".//billing_society",
+    "billing_civility": ".//billing_civility",
+    "billing_lastname": ".//billing_lastname",
+    "billing_firstname": ".//billing_firstname",
+    "billing_email": ".//billing_email",
+    "billing_address": "./billing_address/billing_address",
+    "billing_address_2": ".//billing_address_2",
+    "billing_address_complement": ".//billing_address_complement",
+    "billing_zipcode": ".//billing_zipcode",
+    "billing_city": ".//billing_city",
+    "billing_country": ".//billing_country",
+    "billing_country_iso": ".//billing_country_iso",
+    "billing_phone_home": ".//billing_phone_home",
+    "billing_phone_office": ".//billing_phone_office",
+    "billing_phone_mobile": ".//billing_phone_mobile",
+    "billing_full_address": ".//billing_full_address",
+    "delivery_society": ".//delivery_society",
+    "delivery_civility": ".//delivery_civility",
+    "delivery_lastname": ".//delivery_lastname",
+    "delivery_firstname": ".//delivery_firstname",
+    "delivery_email": ".//delivery_email",
+    "delivery_address": "./delivery_address/delivery_address",
+    "delivery_address_2": ".//delivery_address_2",
+    "delivery_address_complement": ".//delivery_address_complement",
+    "delivery_zipcode": ".//delivery_zipcode",
+    "delivery_city": ".//delivery_city",
+    "delivery_country": ".//delivery_country",
+    "delivery_country_iso": ".//delivery_country_iso",
+    "delivery_phone_home": ".//delivery_phone_home",
+    "delivery_phone_office": ".//delivery_phone_office",
+    "delivery_phone_mobile": ".//delivery_phone_mobile",
+    "delivery_full_address": ".//delivery_full_address",
+    "tracking_method": ".//tracking_method",
+    "tracking_carrier": ".//tracking_carrier",
+    "tracking_number": ".//tracking_number",
+    "tracking_url": ".//tracking_url",
+    "tracking_relay": ".//tracking_relay",
+    "order_comments": ".//order_comments",
+    "customer_id": ".//customer_id",
+}
+
+date_fields = {
+    "order_purchase_date": ("order_purchase_date", "%Y-%m-%d"),
+    "order_purchase_time": ("order_purchase_heure", "%H:%M:%S"),
+    "payment_date": (".//payment_date", "%Y-%m-%d"),
+    "payment_time": (".//payment_heure", "%H:%M:%S"),
+    "tracking_shipped_date": (".//tracking_shipped_date", "%Y-%m-%d %H:%M:%S"),
+}
+
+decimal_fields = [
+    "order_amount",
+    "order_tax",
+    "order_shipping",
+    "order_commission",
+    "order_processing_fee",
+    "tracking_parcel_weight",
+]
 
 
 class Command(BaseCommand):
@@ -22,258 +97,57 @@ class Command(BaseCommand):
         url = (
             kwargs["url"] if kwargs["url"] else "http://test.lengow.io/orders-test.xml"
         )
-        response = requests.get(url)
 
-        if response.status_code == 200:
-            self.stdout.write(self.style.SUCCESS("Successfully fetched XML data"))
-            xml_data = response.content
-            root = ElementTree.fromstring(xml_data)
+        try:
+            response = requests.get(url)
+            response.raise_for_status()  # Raise an error for bad HTTP status codes
+        except requests.RequestException as e:
+            logger.error(f"Failed to fetch data: {e}")
+            return
 
-            for order_elem in root.findall(".//order"):
+        xml_data = response.content
+        logger.info("Successfully fetched XML data")
+        root = ElementTree.fromstring(xml_data)
+
+        for order_elem in root.findall(".//order"):
+            try:
                 order = Order()
-                order.marketplace = get_str_from_element_and_xpath(
-                    order_elem, "marketplace"
-                )
-                order.id_flux = get_str_from_element_and_xpath(order_elem, "idFlux")
-                order.order_status_marketplace = get_str_from_element_and_xpath(
-                    order_elem, ".//marketplace"
-                )
-                order.order_status_lengow = get_str_from_element_and_xpath(
-                    order_elem, ".//lengow"
-                )
-                order.order_id = get_str_from_element_and_xpath(order_elem, "order_id")
-                order.order_mrid = get_str_from_element_and_xpath(
-                    order_elem, "order_mrid"
-                )
-                order.order_refid = get_str_from_element_and_xpath(
-                    order_elem, "order_refid"
-                )
-                order.order_external_id = get_str_from_element_and_xpath(
-                    order_elem, "order_external_id"
-                )
 
-                # Convert date and time fields to timezone-aware datetimes
-                purchase_date = safe_datetime_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_purchase_date"),
-                    "%Y-%m-%d",
-                )
-                order.order_purchase_date = (
-                    timezone.make_aware(purchase_date) if purchase_date else None
-                )
+                for field, xpath in field_mappings.items():
+                    setattr(
+                        order, field, get_str_from_element_and_xpath(order_elem, xpath)
+                    )
 
-                purchase_time = safe_datetime_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_purchase_heure"),
-                    "%H:%M:%S",
-                )
-                order.order_purchase_time = (
-                    purchase_time.time() if purchase_time else None
-                )
+                for field, (xpath, date_format) in date_fields.items():
+                    date_value = safe_datetime_conversion(
+                        get_str_from_element_and_xpath(order_elem, xpath), date_format
+                    )
+                    if date_value:
+                        if "time" in field:
+                            setattr(order, field, date_value.time())
+                        else:
+                            setattr(order, field, timezone.make_aware(date_value))
 
-                payment_date = safe_datetime_conversion(
-                    get_str_from_element_and_xpath(order_elem, ".//payment_date"),
-                    "%Y-%m-%d",
-                )
-                order.payment_date = (
-                    timezone.make_aware(payment_date) if payment_date else None
-                )
-
-                payment_time = safe_datetime_conversion(
-                    get_str_from_element_and_xpath(order_elem, ".//payment_heure"),
-                    "%H:%M:%S",
-                )
-                order.payment_time = payment_time.time() if payment_time else None
-
-                shipped_date = safe_datetime_conversion(
-                    get_str_from_element_and_xpath(
-                        order_elem, ".//tracking_shipped_date"
-                    ),
-                    "%Y-%m-%d %H:%M:%S",
-                )
-                order.tracking_shipped_date = (
-                    timezone.make_aware(shipped_date) if shipped_date else None
-                )
-
-                # Convert decimal fields
-                order.order_amount = safe_decimal_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_amount")
-                )
-                order.order_tax = safe_decimal_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_tax")
-                )
-                order.order_shipping = safe_decimal_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_shipping")
-                )
-                order.order_commission = safe_decimal_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_commission")
-                )
-                order.order_processing_fee = safe_decimal_conversion(
-                    get_str_from_element_and_xpath(order_elem, "order_processing_fee")
-                )
-                order.tracking_parcel_weight = (
-                    safe_decimal_conversion(
-                        get_str_from_element_and_xpath(
-                            order_elem, ".//tracking_parcel_weight"
+                for field in decimal_fields:
+                    setattr(
+                        order,
+                        field,
+                        safe_decimal_conversion(
+                            get_str_from_element_and_xpath(order_elem, field)
                         )
+                        or Decimal(0.0),
                     )
-                    if get_str_from_element_and_xpath(
-                        order_elem, ".//tracking_parcel_weight"
-                    )
-                    else Decimal(0.0)
-                )
 
-                # Set other fields
-                order.order_items = get_str_from_element_and_xpath(
-                    order_elem, ".//order_items"
-                )
-                order.order_currency = get_str_from_element_and_xpath(
-                    order_elem, "order_currency"
-                )
-                order.payment_checkout = get_str_from_element_and_xpath(
-                    order_elem, ".//payment_checkout"
-                )
-                order.payment_status = get_str_from_element_and_xpath(
-                    order_elem, ".//payment_status"
-                )
-                order.payment_type = get_str_from_element_and_xpath(
-                    order_elem, ".//payment_type"
-                )
-                order.invoice_number = get_str_from_element_and_xpath(
-                    order_elem, ".//invoice_number"
-                )
-                order.invoice_url = get_str_from_element_and_xpath(
-                    order_elem, ".//invoice_url"
-                )
-                order.billing_society = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_society"
-                )
-                order.billing_civility = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_civility"
-                )
-                order.billing_lastname = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_lastname"
-                )
-                order.billing_firstname = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_firstname"
-                )
-                order.billing_email = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_email"
-                )
-                order.billing_address = get_str_from_element_and_xpath(
-                    order_elem, "./billing_address/billing_address"
-                )
-                order.billing_address_2 = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_address_2"
-                )
-                order.billing_address_complement = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_address_complement"
-                )
-                order.billing_zipcode = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_zipcode"
-                )
-                order.billing_city = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_city"
-                )
-                order.billing_country = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_country"
-                )
-                order.billing_country_iso = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_country_iso"
-                )
-                order.billing_phone_home = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_phone_home"
-                )
-                order.billing_phone_office = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_phone_office"
-                )
-                order.billing_phone_mobile = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_phone_mobile"
-                )
-                order.billing_full_address = get_str_from_element_and_xpath(
-                    order_elem, ".//billing_full_address"
-                )
-                order.delivery_society = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_society"
-                )
-                order.delivery_civility = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_civility"
-                )
-                order.delivery_lastname = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_lastname"
-                )
-                order.delivery_firstname = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_firstname"
-                )
-                order.delivery_email = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_email"
-                )
-                order.delivery_address = get_str_from_element_and_xpath(
-                    order_elem, "./delivery_address/delivery_address"
-                )
-                order.delivery_address_2 = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_address_2"
-                )
-                order.delivery_address_complement = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_address_complement"
-                )
-                order.delivery_zipcode = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_zipcode"
-                )
-                order.delivery_city = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_city"
-                )
-                order.delivery_country = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_country"
-                )
-                order.delivery_country_iso = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_country_iso"
-                )
-                order.delivery_phone_home = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_phone_home"
-                )
-                order.delivery_phone_office = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_phone_office"
-                )
-                order.delivery_phone_mobile = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_phone_mobile"
-                )
-                order.delivery_full_address = get_str_from_element_and_xpath(
-                    order_elem, ".//delivery_full_address"
-                )
-                order.tracking_method = get_str_from_element_and_xpath(
-                    order_elem, ".//tracking_method"
-                )
-                order.tracking_carrier = get_str_from_element_and_xpath(
-                    order_elem, ".//tracking_carrier"
-                )
-                order.tracking_number = get_str_from_element_and_xpath(
-                    order_elem, ".//tracking_number"
-                )
-                order.tracking_url = get_str_from_element_and_xpath(
-                    order_elem, ".//tracking_url"
-                )
-                order.tracking_relay = get_str_from_element_and_xpath(
-                    order_elem, ".//tracking_relay"
-                )
                 order.tracking_delivering_by_marketplace = (
                     get_str_from_element_and_xpath(
                         order_elem, ".//tracking_deliveringByMarketPlace"
                     )
                     == "1"
                 )
-                order.order_comments = get_str_from_element_and_xpath(
-                    order_elem, ".//order_comments"
-                )
-                order.customer_id = get_str_from_element_and_xpath(
-                    order_elem, ".//customer_id"
-                )
 
                 order.save()
+                logger.info(f"Successfully created order {order.order_id}")
 
-                self.stdout.write(
-                    self.style.SUCCESS(f"Successfully created order {order.order_id}")
-                )
-
-        else:
-            self.stdout.write(
-                self.style.ERROR(f"Failed to fetch data = {response.status_code}")
-            )
+            except Exception as e:
+                logger.error(f"Failed to process order: {e}")
+                break
